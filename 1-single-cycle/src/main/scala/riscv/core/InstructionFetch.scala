@@ -67,7 +67,9 @@ class InstructionFetch extends Module {
     // - Check jump flag condition
     // - True case: Use jump target address
     // - False case: Sequential execution
-    pc := ?
+    pc := Mux(io.jump_flag_id,
+              io.jump_address_id,   // 控制流程改變
+              pc + 4.U)             // 一般 sequential
 
   }.otherwise {
     // When instruction is invalid, hold PC and insert NOP (ADDI x0, x0, 0)
