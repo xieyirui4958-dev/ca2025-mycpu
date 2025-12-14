@@ -67,48 +67,45 @@ class MemoryAccess extends Module {
     //
     // Note: This optimized implementation uses MuxLookup for byte selection
     // to handle all possible byte positions (0, 1, 2, 3) in a 32-bit word
-    io.wb_memory_read_data := MuxLookup(io.funct3, 0.U)(
+        io.wb_memory_read_data := MuxLookup(io.funct3, 0.U)(
       Seq(
-        // TODO: Complete LB (sign-extend byte)
-        // Hint: Replicate sign bit, then concatenate with byte
+        // LB：sign-extend byte
         InstructionsTypeL.lb -> MuxLookup(mem_address_index, Cat(Fill(24, data(31)), data(31, 24)))(
           Seq(
-            0.U -> ?,
-            1.U -> ?,
-            2.U -> ?
+            0.U -> Cat(Fill(24, data(7)),  data(7, 0)),
+            1.U -> Cat(Fill(24, data(15)), data(15, 8)),
+            2.U -> Cat(Fill(24, data(23)), data(23, 16))
           )
         ),
 
-        // TODO: Complete LBU (zero-extend byte)
-        // Hint: Fill upper bits with zero, then concatenate with byte
+        // LBU：zero-extend byte
         InstructionsTypeL.lbu -> MuxLookup(mem_address_index, Cat(Fill(24, 0.U), data(31, 24)))(
           Seq(
-            0.U -> ?,
-            1.U -> ?,
-            2.U -> ?
+            0.U -> Cat(Fill(24, 0.U), data(7, 0)),
+            1.U -> Cat(Fill(24, 0.U), data(15, 8)),
+            2.U -> Cat(Fill(24, 0.U), data(23, 16))
           )
         ),
 
-        // TODO: Complete LH (sign-extend halfword)
-        // Hint: Replicate sign bit, then concatenate with halfword
+        // LH：sign-extend halfword（對齊 0 或 2）
         InstructionsTypeL.lh -> Mux(
           mem_address_index === 0.U,
-          ?,
-          ?
+          Cat(Fill(16, data(15)), data(15, 0)),   // lower halfword
+          Cat(Fill(16, data(31)), data(31, 16))   // upper halfword
         ),
 
-        // TODO: Complete LHU (zero-extend halfword)
-        // Hint: Fill upper bits with zero, then concatenate with halfword
+        // LHU：zero-extend halfword
         InstructionsTypeL.lhu -> Mux(
           mem_address_index === 0.U,
-          ?,
-          ?
+          Cat(Fill(16, 0.U), data(15, 0)),        // lower halfword
+          Cat(Fill(16, 0.U), data(31, 16))        // upper halfword
         ),
 
-        // LW: Load full word, no extension needed (completed example)
+        // LW：整個 word 直接回傳
         InstructionsTypeL.lw -> data
       )
     )
+
   // ============================================================
   // [CA25: Exercise 13] Store Data Alignment - Byte Strobes and Shifting
   // ============================================================
@@ -132,27 +129,20 @@ class MemoryAccess extends Module {
   // Examples:
   // - SB to address 0x1002 (index=2): data[7:0] → byte 2, strobe[2]=1
   // - SH to address 0x1002 (index=2): data[15:0] → bytes 2-3, strobes[2:3]=1
-  }.elsewhen(io.memory_write_enable) {
+    }.elsewhen(io.memory_write_enable) {
     io.memory_bundle.write_data   := io.reg2_data
     io.memory_bundle.write_enable := true.B
     io.memory_bundle.write_strobe := VecInit(Seq.fill(Parameters.WordSize)(false.B))
 
-    // Optimized store logic: reduce combinational depth by simplifying shift operations
-    // mem_address_index is already computed from address alignment (bits 1:0)
+    // SB：store byte
     when(io.funct3 === InstructionsTypeS.sb) {
-      // TODO: Complete store byte logic
-      // Hint:
-      // 1. Enable single byte strobe at appropriate position
-      // 2. Shift byte data to correct position based on address
-      io.memory_bundle.write_strobe(?) := true.B
-      io.memory_bundle.write_data := io.reg2_data(?) << (mem_address_index << ?)
+      io.memory_bundle.write_strobe(mem_address_index) := true.B
+      io.memory_bundle.write_data := io.reg2_data(7, 0) << (mem_address_index << 3)
 
+    // SH：store halfword
     }.elsewhen(io.funct3 === InstructionsTypeS.sh) {
-      // TODO: Complete store halfword logic
-      // Hint: Check address to determine lower/upper halfword position
-      when(mem_address_index(?) === 0.U) {
-        // Lower halfword (bytes 0-1)
-        // TODO: Enable strobes for bytes 0 and 1, no shifting needed
+      when(mem_address_index(1) === 0.U) {
+        // lower halfword (bytes 0–1)
         for (i <- 0 until Parameters.WordSize / 2) {
           io.memory_bundle.write_strobe(i) := true.B
         }
@@ -161,8 +151,7 @@ class MemoryAccess extends Module {
           0
         )
       }.otherwise {
-        // Upper halfword (bytes 2-3)
-        // TODO: Enable strobes for bytes 2 and 3, shift left by 16 bits
+        // upper halfword (bytes 2–3)
         for (i <- Parameters.WordSize / 2 until Parameters.WordSize) {
           io.memory_bundle.write_strobe(i) := true.B
         }
@@ -172,8 +161,8 @@ class MemoryAccess extends Module {
         ) << (Parameters.WordSize / 2 * Parameters.ByteBits)
       }
 
+    // SW：store word（範例已給）
     }.elsewhen(io.funct3 === InstructionsTypeS.sw) {
-      // Store word: enable all byte strobes, no shifting needed (completed example)
       for (i <- 0 until Parameters.WordSize) {
         io.memory_bundle.write_strobe(i) := true.B
       }

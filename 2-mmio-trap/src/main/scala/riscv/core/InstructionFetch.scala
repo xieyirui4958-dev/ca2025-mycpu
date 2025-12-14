@@ -66,8 +66,15 @@ class InstructionFetch extends Module {
     // - Inner multiplexer: Check jump flag
     //   - True: Use jump target address
     //   - False: Sequential execution
-    pc := ?
-
+    pc := Mux(
+      io.interrupt_assert,
+      io.interrupt_handler_address,                 // 有中斷：跳到中斷處理函式
+      Mux(
+        io.jump_flag_id,
+        io.jump_address_id,                         // 有分支/跳躍：用 EX 給的目標位址
+        pc + 4.U                                    // 否則正常 PC+4
+      )
+    )
   }.otherwise {
     // When instruction is invalid, hold PC and insert NOP (ADDI x0, x0, 0)
     // NOP = 0x00000013 allows pipeline to continue safely without side effects
